@@ -54,7 +54,12 @@ pub fn bzip2_decompressor(
                     Status::FinishOk => break,
                     Status::MemNeeded => break,
                     Status::Ok => {
-                        stream_offset = decompressor.total_in() as usize;
+                        let new_offset = decompressor.total_in() as usize;
+                        if new_offset == stream_offset {
+                            // 数据未消费，可能陷入死循环
+                            break;
+                        }
+                        stream_offset = new_offset;
                     }
                     Status::StreamEnd => {
                         result.success = true;
@@ -65,7 +70,6 @@ pub fn bzip2_decompressor(
                 // Decompressed a block of data, if extraction was requested write the decompressed block to the output file
                 if output_directory.is_some() {
                     let n: usize = (decompressor.total_out() as usize) - bytes_written;
-
                     let chroot = Chroot::new(output_directory);
                     if !chroot.append_to_file(OUTPUT_FILE_NAME, &decompressed_buffer[0..n]) {
                         // If writing data to file fails, break
